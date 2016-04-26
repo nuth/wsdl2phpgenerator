@@ -1,297 +1,215 @@
 <?php
-/**
- * @package Wsdl2PhpGenerator
- */
+
+namespace Wsdl2PhpGenerator;
+
+use InvalidArgumentException;
+use Symfony\Component\OptionsResolver\Exception\InvalidOptionsException;
+use Symfony\Component\OptionsResolver\Options;
+use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Component\OptionsResolver\OptionsResolverInterface;
+use Wsdl2PhpGenerator\ConfigInterface;
 
 /**
- * Class that contains all the settings possible for the Wsdl2PhpGenerator
+ * This class contains configurable key/value pairs.
  *
  * @package Wsdl2PhpGenerator
- * @author Fredrik Wallgren <fredrik.wallgren@gmail.com>
- * @license http://www.opensource.org/licenses/mit-license.php MIT License
  */
-class Config
+class Config implements ConfigInterface
 {
-  /**
-   *
-   * @var string The name to use as namespace in the new classes, no namespaces is used if empty
-   * @access private
-   */
-  private $namespaceName;
+    /**
+     * @var array The actual key/value pairs.
+     */
+    protected $options;
 
-  /**
-   *
-   * @var bool Descides if the output is collected to one file or spread over one file per class
-   * @access private
-   */
-  private $oneFile;
-
-  /**
-   *
-   * @var bool Decides if the output should protect all classes with if(!class_exists statements
-   * @access private
-   */
-  private $classExists;
-
-  /**
-   *
-   * @var string The directory where to put the file(s)
-   * @access private
-   */
-  private $outputDir;
-
-  /**
-   *
-   * @var string The wsdl file to use to generate the classes
-   * @access private
-   */
-  private $inputFile;
-
-  /**
-   * The array should contain the strings for the options to enable
-   *
-   * @var array containing all features in the options for the client
-   */
-  private $optionFeatures;
-
-  /**
-   *
-   * @var string The wsdl cache to use if any. Possible values WSDL_CACHE_NONE, WSDL_CACHE_DISK, WSDL_CACHE_MEMORY or WSDL_CACHE_BOTH
-   */
-  private $wsdlCache;
-
-  /**
-   *
-   * @var string The compression string to use
-   */
-  private $compression;
-
-  /**
-
-   *
-   * @var string A comma separated list of classes to generate. Used to specify the classes to generate if the user doesn't want to generate all
-   */
-  private $classNames;
-
-  /**
-
-   *
-   * @var bool If a type constructor should not be generated
-   */
-  private $noTypeConstructor;
-
-  /**
-   *
-   * @var bool If we should output verbose information
-   */
-  private $verbose;
-
-  /**
-   *
-   * @var string The prefix to use for all classes
-   */
-  private $prefix;
-
-  /**
-   *
-   * @var string The sufix to use for all classes
-   */
-  private $suffix;
-
-  /**
-   *
-   * @var string If multiple class got the name, the first will be used, other will be ignored
-   */
-  private $sharedTypes;
-
-  /**
-   * Sets all variables
-   *
-   * @param string $inputFile
-   * @param string $outputDir
-   * @param bool $verbose
-   * @param bool $oneFile
-   * @param bool $classExists
-   * @param bool $noTypeConstructor
-   * @param string $namespaceName
-   * @param array $optionsFeatures
-   * @param string $wsdlCache
-   * @param string $compression
-   * @param string $classNames
-   * @param string $prefix
-   * @param string $suffix
-   * @param string $sharedTypes
-   */
-  public function __construct($inputFile, $outputDir, $verbose = false, $oneFile = false, $classExists = false, $noTypeConstructor = false, $namespaceName = '', $optionsFeatures = array(), $wsdlCache = '', $compression = '', $classNames = '', $prefix = '', $suffix = '', $sharedTypes = false)
-  {
-    $this->namespaceName = trim($namespaceName);
-    $this->oneFile = $oneFile;
-    $this->verbose = $verbose;
-    $this->classExists = $classExists;
-    $this->noTypeConstructor = $noTypeConstructor;
-    $this->outputDir = trim($outputDir);
-    if (is_array($inputFile))
-      foreach ($inputFile as &$file)
-	$file = trim($file);
-    else
-      $inputFile = trim($inputFile);
-    $this->inputFile = $inputFile;
-    $this->optionFeatures = $optionsFeatures;
-    $this->wsdlCache = '';
-    if (in_array($wsdlCache, array('WSDL_CACHE_NONE', 'WSDL_CACHE_DISK', 'WSDL_CACHE_MEMORY', 'WSDL_CACHE_BOTH')))
+    public function __construct(array $options)
     {
-      $this->wsdlCache = $wsdlCache;
-    }
-    $this->compression = trim($compression);
-    $this->classNames = trim($classNames);
-    $this->prefix = trim($prefix);
-    $this->suffix = trim($suffix);
-    $this->sharedTypes = trim($sharedTypes);
-  }
+        $resolver = new OptionsResolver();
+        $this->configureOptions($resolver);
 
-  /**
-   * @return string Returns the namespace name the output should use
-   * @access public
-   */
-  public function getNamespaceName()
-  {
-    return $this->namespaceName;
-  }
-
-  /**
-   * @return bool Returns if the output should be gathered to one file
-   * @access public
-   */
-  public function getOneFile()
-  {
-    return $this->oneFile;
-  }
-
-  /**
-   * @return bool Returns if the output should be protected with class_exists statements
-   * @access public
-   */
-  public function getClassExists()
-  {
-    return $this->classExists;
-  }
-
-  /**
-   *
-   * @return bool Returns true if no type constructor should be used
-   * @access public
-   */
-  public function getNoTypeConstructor()
-  {
-    return $this->noTypeConstructor;
-  }
-
-  /**
-   * @return string Returns the path of the output directory
-   * @access public
-   */
-  public function getOutputDir()
-  {
-    return $this->outputDir;
-  }
-
-  /**
-   * @return string Returns the path of the input file
-   * @access public
-   */
-  public function getInputFile()
-  {
-    return $this->inputFile;
-  }
-
-  /**
-   *
-   * @return array An array of strings of all the features to enable
-   */
-  public function getOptionFeatures()
-  {
-    return $this->optionFeatures;
-  }
-
-  /**
-   *
-   * @return string Returns the string with the constant to use for wsdl cache
-   */
-  public function getWsdlCache()
-  {
-    return $this->wsdlCache;
-  }
-
-  /**
-   *
-   * @return string The compression value to use for the client
-   */
-  public function getCompression()
-  {
-    return $this->compression;
-  }
-
-  /**
-   *
-   * @return string The list of classes
-   */
-  public function getClassNames()
-  {
-    return $this->classNames;
-  }
-
-  /**
-   *
-   * @return array Returns an array with all classnames to generate
-   */
-  public function getClassNamesArray()
-  {
-    if (strpos($this->classNames, ',') !== false)
-    {
-      return array_map('trim', explode(',', $this->classNames));
-    }
-    else if (strlen($this->classNames) > 0 )
-    {
-      return array($this->classNames);
+        $this->options = $resolver->resolve($options);
     }
 
-    return array();
-  }
+    /**
+     * Get a value from the configuration by key.
+     *
+     * @param $key
+     * @return mixed
+     * @throws \InvalidArgumentException
+     */
+    public function get($key)
+    {
+        if (!array_key_exists($key, $this->options)) {
+            throw new InvalidArgumentException(sprintf('The key %s does not exist.', $key));
+        }
 
-  /**
-   *
-   * @return bool Returns true if verbose output is selected
-   */
-  public function getVerbose()
-  {
-    return $this->verbose;
-  }
+        return $this->options[$key];
+    }
 
-  /**
-   *
-   * @return string Returns the prefix if any
-   */
-  public function getPrefix()
-  {
-    return $this->prefix;
-  }
+    /**
+     * Set or overwrite a configuration key with a given value.
+     *
+     * @param $key
+     * @param $value
+     * @return $this|ConfigInterface
+     */
+    public function set($key, $value)
+    {
+        $this->options[$key] = $value;
+        return $this;
+    }
 
-  /**
-   *
-   * @return string Returns the suffix if any
-   */
-  public function getSuffix()
-  {
-    return $this->suffix;
-  }
+    protected function configureOptions(OptionsResolver $resolver)
+    {
+        $resolver->setRequired(array(
+            'inputFile',
+            'outputDir'
+        ));
 
-  /**
-   *
-   * @return string Returns the shared types
-   */
-  public function getSharedTypes()
-  {
-    return $this->sharedTypes;
-  }
+        $resolver->setDefaults(array(
+            'verbose'                        => false,
+            'namespaceName'                  => '',
+            'classNames'                     => '',
+            'operationNames'                 => '',
+            'sharedTypes'                    => false,
+            'constructorParamsDefaultToNull' => false,
+            'soapClientClass'               => '\SoapClient',
+            'soapClientOptions'             => array(),
+            'proxy'                         => false
+        ));
+
+        // A set of configuration options names and normalizer callables.
+        $normalizers = array(
+            'classNames' => array($this, 'normalizeArray'),
+            'operationNames' => array($this, 'normalizeArray'),
+            'soapClientOptions' => array($this, 'normalizeSoapClientOptions'),
+            'proxy' => array($this, 'normalizeProxy'),
+        );
+        // Convert each callable to a closure as that is required by OptionsResolver->setNormalizer().
+        $normalizers = array_map(function ($callable) {
+            return function (Options $options, $value) use ($callable) {
+                // Using reflection here is quite ugly. This can be reduced to the following once we drop 5.3 support.
+                // return call_user_func_array($callable, func_get_args());
+                list($object, $method) = $callable;
+                $normalizer = new \ReflectionMethod(get_class($object), $method);
+                $normalizer->setAccessible(true);
+                return $normalizer->invokeArgs($object, func_get_args());
+            };
+        }, $normalizers);
+
+        foreach ($normalizers as $option => $normalizer) {
+            $resolver->setNormalizer($option, $normalizer);
+        }
+    }
+
+    /**
+     * Normalize a string or array to an array.
+     *
+     * Each value is cleaned up, removing excessive spacing before and after values.
+     *
+     * @param Options $options
+     * @param array|string $value The value to be normalized.
+     *
+     * @return array An array of normalized values.
+     */
+    protected function normalizeArray(Options $options, $value)
+    {
+        if (strlen($value) === 0) {
+            return array();
+        }
+
+        return array_map('trim', explode(',', $value));
+    }
+
+    /**
+     * Normalize the soapClientOptions configuration option.
+     *
+     * @see http://php.net/manual/en/soapclient.soapclient.php.
+     *
+     * @param Options $options
+     * @param array $value The value to be normalized.
+     *
+     * @return array An array of normalized values.
+     */
+    protected function normalizeSoapClientOptions(Options $options, array $value)
+    {
+        // The SOAP_SINGLE_ELEMENT_ARRAYS feature should be enabled by default if no other option has been set
+        // explicitly while leaving this out. This cannot be handled in the defaults as soapClientOptions is a
+        // nested array.
+        if (!isset($value['features'])) {
+            $value['features'] = SOAP_SINGLE_ELEMENT_ARRAYS;
+        }
+
+        // Merge proxy options into soapClientOptions to propagate general configuration options into the
+        // SoapClient. It is important that the proxy configuration has been normalized before it is merged.
+        // The OptionResolver ensures this by normalizing values on access.
+        if (!empty($options['proxy'])) {
+            $value = array_merge($options['proxy'], $value);
+        }
+
+        return $value;
+    }
+
+    /**
+     * Normalize the proxy configuration option.
+     *
+     * The normalized value is an array with the following keys:
+     * - proxy_host
+     * - proxy_port
+     * - proxy_login (optional)
+     * - proxy_password (optional)
+     *
+     * @param Options $options
+     * @param string|array $value The value to be normalized
+     *
+     * @return array|bool The normalized value.
+     */
+    protected function normalizeProxy(Options $options, $value)
+    {
+        if (!$value) {
+            // proxy setting is optional
+            return false;
+        }
+        if (is_string($value)) {
+            $url_parts = parse_url($value);
+            if ($url_parts === false) {
+                throw new InvalidOptionsException('"proxy" configuration setting contains a malformed url.');
+            }
+
+            $proxy_array = array(
+                'proxy_host' => $url_parts['host']
+            );
+            if (isset($url_parts['port'])) {
+                $proxy_array['proxy_port'] = $url_parts['port'];
+            }
+            if (isset($url_parts['user'])) {
+                $proxy_array['proxy_login'] = $url_parts['user'];
+            }
+            if (isset($url_parts['pass'])) {
+                $proxy_array['proxy_password'] = $url_parts['pass'];
+            }
+            $value = $proxy_array;
+        } elseif (is_array($value)) {
+            foreach ($value as $k => $v) {
+                // Prepend proxy_ to each key to match the expended proxy option names of the PHP SoapClient.
+                $value['proxy_' . $k] = $v;
+                unset($value[$k]);
+            }
+
+            if (empty($value['proxy_host']) || empty($value['proxy_port'])) {
+                throw new InvalidOptionsException(
+                    '"proxy" configuration setting must contain at least keys "host" and "port'
+                );
+            }
+        } else {
+            throw new InvalidOptionsException(
+                '"proxy" configuration setting must be either a string containing the proxy url '
+                . 'or an array containing at least a key "host" and "port"'
+            );
+        }
+
+        // Make sure port is an integer
+        $value['proxy_port'] = intval($value['proxy_port']);
+
+        return $value;
+    }
 }
-

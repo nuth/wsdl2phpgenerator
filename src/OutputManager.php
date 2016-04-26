@@ -3,11 +3,12 @@
 /**
  * @package Wsdl2PhpGenerator
  */
+namespace Wsdl2PhpGenerator;
 
-/**
- * @see PhpClass
- */
-require_once dirname(__FILE__).'/../lib/phpSource/PhpFile.php';
+use \Exception;
+use Wsdl2PhpGenerator\PhpSource\PhpClass;
+use Wsdl2PhpGenerator\PhpSource\PhpFile;
+use Wsdl2PhpGenerator\PhpSource\PhpFunction;
 
 /**
  * Manages the output of php files from the generator
@@ -18,185 +19,147 @@ require_once dirname(__FILE__).'/../lib/phpSource/PhpFile.php';
  */
 class OutputManager
 {
-  /**
-   *
-   * @var string The directory to save the files
-   */
-  private $dir;
+    /**
+     * @var string The directory to save the files
+     */
+    private $dir = '';
 
-  /**
-   *
-   * @var bool If we should add a namespace to the files
-   */
-  private $useNamespace;
 
-  /**
-   *
-   * @var array An array with classnames to save
-   */
-  private $classesToSave;
+    /**
+     * @var ConfigInterface A reference to the config
+     */
+    private $config;
 
-  /**
-   *
-   * @var Config A reference to the config
-   */
-  private $config;
-
-  /**
-   *
-   * @var PhpFile The file object to use for saving the files
-   */
-  private $file;
-
-  /**
-   *
-   * @param Config $config The config to use
-   */
-  public function __construct(Config $config)
-  {
-    $this->config = $config;
-    $this->dir = '';
-    $this->useNamespace = (strlen($this->config->getNamespaceName()) > 0);
-    $this->classesToSave = $this->config->getClassNamesArray();
-    $this->file = null;
-  }
-
-  /**
-   * Saves the service and types php code to file
-   *
-   * @param PhpClass $service
-   * @param array $types
-   */
-  public function save(PhpClass $service, array $types)
-  {
-    $this->setOutputDirectory();
-
-    if ($this->config->getOneFile())
+    /**
+     * @param ConfigInterface $config The config to use
+     */
+    public function __construct(ConfigInterface $config)
     {
-      if (!is_dir($this->config->getOutputDir()))
-	$this->file = new PhpFile(basename($this->config->getOutputDir()));
-      else
-      $this->file = new PhpFile($service->getIdentifier());
-      $this->addNamespace();
-      $this->addClassToFile($service);
-      foreach ($types as $type)
-      {
-        $this->addClassToFile($type);
-      }
-
-      if (!is_dir($this->config->getOutputDir()))
-	$this->file->save(dirname($this->config->getOutputDir()));
-      else
-      $this->file->save($this->dir);
-    }
-    else
-    {
-      $this->saveClassToFile($service);
-      foreach ($types as $type)
-      {
-        $this->saveClassToFile($type);
-      }
-    }
-  }
-
-  /**
-   * Sets the output directory, creates it if needed
-   * This must be called before saving a file
-   *
-   * @throws Exception If the dir can't be created and dont already exists
-   */
-  private function setOutputDirectory()
-  {
-    $outputDirectory = $this->config->getOutputDir();
-
-    //Try to create output dir if non existing
-    if ($this->config->getOneFile())
-      $outputDirectory = dirname($outputDirectory);
-    if (is_dir($outputDirectory) == false)
-    {
-      if(mkdir($outputDirectory, 0777, true) == false)
-      {
-        throw new Exception('Could not create output directory and it does not exist!');
-      }
+        $this->config = $config;
     }
 
-    $this->dir = $outputDirectory;
-  }
-
-  /**
-   * Append a class to a file
-   * If no file is created the name of the class is the filename
-   *
-   * @param PhpClass $class
-   */
-  private function addClassToFile(PhpClass $class)
-  {
-    // Check if the class should be saved
-    if ($this->isValidClass($class))
+    /**
+     * Saves the service and types php code to file
+     *
+     * @param PhpClass $service
+     * @param array $types
+     */
+    public function save(PhpClass $service, array $types)
     {
-      if ($this->file == null)
-      {
-        $this->file = new PhpFile($class->getIdentifier());
-        $this->addNamespace();
-      }
+        $this->setOutputDirectory();
 
-      $this->file->addClass($class);
-    }
-  }
+        $this->saveClassToFile($service);
+        foreach ($types as $type) {
+            $this->saveClassToFile($type);
+        }
 
-  /**
-   * Append a class to a file and save it
-   * If no file is created the name of the class is the filename
-   *
-   * @param PhpClass $class
-   */
-  private function saveClassToFile(PhpClass $class)
-  {
-    $this->addClassToFile($class);
-    if ($this->file != null)
-    {
-      $this->file->save($this->dir);
-      $this->file = null;
-    }
-  }
-
-  /**
-   * Checks if a namespace should be added, if so it adds it to the current file
-   */
-  private function addNamespace()
-  {
-    if ($this->useNamespace && $this->file->hasNamespace() == false)
-    {
-      $this->file->addNamespace($this->config->getNamespaceName());
-    }
-  }
-
-  /**
-   * Checks if the class is approved
-   * Removes the prefix and suffix for namechecking
-   *
-   * @param PhpClass $class
-   * @return bool Returns true if the class is ok to add to file
-   */
-  private function isValidClass(PhpClass $class)
-  {
-    $suffix = strlen($this->config->getSuffix());
-    if ($suffix > 0)
-    {
-      $nSuf = 0 - $suffix;
-      $className = substr($class->getIdentifier(), strlen($this->config->getPrefix()), $nSuf);
-    }
-    else
-    {
-      $className = substr($class->getIdentifier(), strlen($this->config->getPrefix()));
+        $classes = array_merge(array($service), $types);
+        $this->saveAutoloader($service->getIdentifier(), $classes);
     }
 
-    if (count($this->classesToSave) == 0 || count($this->classesToSave) > 0 && in_array($className, $this->classesToSave))
+    /**
+     * Sets the output directory, creates it if needed
+     * This must be called before saving a file
+     *
+     * @throws Exception If the dir can't be created and dont already exists
+     */
+    private function setOutputDirectory()
     {
-      return true;
+        $outputDirectory = $this->config->get('outputDir');
+
+        //Try to create output dir if non existing
+        if (is_dir($outputDirectory) == false) {
+            if (mkdir($outputDirectory, 0777, true) == false) {
+                throw new Exception('Could not create output directory and it does not exist!');
+            }
+        }
+
+        $this->dir = $outputDirectory;
     }
 
-    return false;
-  }
+    /**
+     * Append a class to a file and save it
+     * If no file is created the name of the class is the filename
+     *
+     * @param PhpClass $class
+     */
+    private function saveClassToFile(PhpClass $class)
+    {
+        if ($this->isValidClass($class)) {
+            $file = new PhpFile($class->getIdentifier());
+
+            $namespace = $this->config->get('namespaceName');
+            if (!empty($namespace)) {
+                $file->addNamespace($namespace);
+            }
+
+            $file->addClass($class);
+            $file->save($this->dir);
+        }
+    }
+
+    /**
+     * Checks if the class is approved
+     * Removes the prefix and suffix for namechecking
+     *
+     * @param PhpClass $class
+     * @return bool Returns true if the class is ok to add to file
+     */
+    private function isValidClass(PhpClass $class)
+    {
+        $classNames = $this->config->get('classNames');
+        return (empty($classNames) || in_array(
+            $class->getIdentifier(),
+            $classNames
+        ));
+    }
+
+    /**
+     * Save a file containing an autoloader for the generated files. Developers can include this when using the
+     * generated classes.
+     *
+     * @param string $name The name of the autoloader. Should be unique for the service to avoid name clashes.
+     * @param PhpClass[] $classes The classes to include in the autoloader.
+     */
+    private function saveAutoloader($name, array $classes)
+    {
+        $autoloaderName = 'autoload_' . md5($name . $this->config->get('namespaceName'));
+
+        // The autoloader function we build contain two parts:
+        // 1. An array of generated classes and their paths.
+        // 2. A check to see if the autoloader contains the argument and if so include it.
+        //
+        // First we generate a string containing the known classes and the paths they map to. One line for each string.
+        $autoloadedClasses = array();
+        foreach ($classes as $class) {
+            $className = $this->config->get('namespaceName') . '\\' . $class->getIdentifier();
+            $className = ltrim($className, '\\');
+            $autoloadedClasses[] = "'" . $className . "' => __DIR__ .'/" . $class->getIdentifier() . ".php'";
+        }
+        $autoloadedClasses = implode(',' . PHP_EOL . str_repeat(' ', 8), $autoloadedClasses);
+
+        // Assemble the source of the autoloader function containing the classes and the check to include.
+        // Our custom code generation library does not support generating code outside of functions and we need to
+        // register the autoloader in the global scope. Consequently we manually insert a } to end the autoloader
+        // function, register it and finish with a {. This means our generated code ends with a no-op {} statement.
+        $autoloaderSource = <<<EOF
+    \$classes = array(
+        $autoloadedClasses
+    );
+    if (!empty(\$classes[\$class])) {
+        include \$classes[\$class];
+    };
 }
 
+spl_autoload_register('$autoloaderName');
+
+// Do nothing. The rest is just leftovers from the code generation.
+{
+EOF;
+
+        $autoloader = new PhpFunction(null, $autoloaderName, '$class', $autoloaderSource);
+        $file = new PhpFile('autoload');
+        $file->addFunction($autoloader);
+        $file->save($this->dir);
+    }
+}
